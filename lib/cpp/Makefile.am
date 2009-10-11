@@ -26,6 +26,10 @@ pkgconfig_DATA = thrift.pc
 
 ## We only build the extra libraries if we have the dependencies,
 ## but we install all of the headers unconditionally.
+if AMX_HAVE_BOOST
+lib_LTLIBRARIES += libthriftasio.la
+pkgconfig_DATA += thrift-asio.pc
+endif
 if AMX_HAVE_LIBEVENT
 lib_LTLIBRARIES += libthriftnb.la
 pkgconfig_DATA += thrift-nb.pc
@@ -69,12 +73,15 @@ libthrift_la_SOURCES = src/Thrift.cpp \
                        src/server/TThreadedServer.cpp \
                        src/processor/PeekProcessor.cpp
 
+libthriftasio_la_SOURCES = src/async/TAsioAsync.cpp
+
 libthriftnb_la_SOURCES = src/server/TNonblockingServer.cpp
 
 libthriftz_la_SOURCES = src/transport/TZlibTransport.cpp
 
 
 # Flags for the various libraries
+libthriftasio_la_CPPFLAGS = $(AM_CPPFLAGS) $(BOOST_CPPFLAGS)
 libthriftnb_la_CPPFLAGS = $(AM_CPPFLAGS) $(LIBEVENT_CPPFLAGS)
 libthriftz_la_CPPFLAGS  = $(AM_CPPFLAGS) $(ZLIB_CPPFLAGS)
 
@@ -86,6 +93,12 @@ include_thrift_HEADERS = \
                          src/TReflectionLocal.h \
                          src/TProcessor.h \
                          src/TLogging.h
+
+include_asyncdir = $(include_thriftdir)/async
+include_async_HEADERS = \
+                         src/async/TAsioAsync.h \
+                         src/async/TAsync.h \
+                         src/async/TFuture.h
 
 include_concurrencydir = $(include_thriftdir)/concurrency
 include_concurrency_HEADERS = \
@@ -153,6 +166,7 @@ concurrency_test_LDADD = libthrift.la
 
 EXTRA_DIST = \
              README \
+             thrift-asio.pc.in \
              thrift-nb.pc.in \
              thrift.pc.in \
              thrift-z.pc.in

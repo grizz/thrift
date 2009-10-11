@@ -51,6 +51,7 @@ AC_PROG_MKDIR_P
 
 AC_LANG([C++])
 AX_BOOST_BASE([1.33.1])
+AM_CONDITIONAL([AMX_HAVE_BOOST], [test "$succeeded" = "yes"])
 
 AX_LIB_EVENT([1.0])
 AM_CONDITIONAL([AMX_HAVE_LIBEVENT], [test "$success" = "yes"])
@@ -239,6 +240,7 @@ AC_CONFIG_FILES([
   lib/Makefile
   lib/cpp/Makefile
   lib/cpp/thrift.pc
+  lib/cpp/thrift-asio.pc
   lib/cpp/thrift-nb.pc
   lib/cpp/thrift-z.pc
   lib/csharp/Makefile
