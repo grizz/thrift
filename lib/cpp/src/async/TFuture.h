@@ -97,7 +97,7 @@ class TBaseController {
     executed_ = true;
     errback_(result_);
   }
-  bool has_success_, has_error_, executed_;
+  bool executed_, has_success_, has_error_;
   result_t result_;
   boost::function<void (success_constref_t)> callback_;
   boost::function<void (const result_t&)> errback_;
@@ -161,7 +161,7 @@ class TBaseController<result_t, void, void> {
     executed_ = true;
     errback_(result_);
   }
-  bool has_success_, has_error_, executed_;
+  bool executed_, has_success_, has_error_;
   result_t result_;
   boost::function<void (void)> callback_;
   boost::function<void (result_t)> errback_;
