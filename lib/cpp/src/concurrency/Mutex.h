@@ -20,6 +20,7 @@
 #ifndef _THRIFT_CONCURRENCY_MUTEX_H_
 #define _THRIFT_CONCURRENCY_MUTEX_H_ 1
 
+#include "Guard.h"
 #include <boost/shared_ptr.hpp>
 
 namespace apache { namespace thrift { namespace concurrency {
@@ -71,35 +72,8 @@ private:
   boost::shared_ptr<impl> impl_;
 };
 
-class Guard {
- public:
-  Guard(const Mutex& value) : mutex_(value) {
-    mutex_.lock();
-  }
-  ~Guard() {
-    mutex_.unlock();
-  }
-
- private:
-  const Mutex& mutex_;
-};
-
-class RWGuard {
-  public:
-    RWGuard(const ReadWriteMutex& value, bool write = 0) : rw_mutex_(value) {
-      if (write) {
-        rw_mutex_.acquireWrite();
-      } else {
-        rw_mutex_.acquireRead();
-      }
-    }
-    ~RWGuard() {
-      rw_mutex_.release();
-    }
-  private:
-    const ReadWriteMutex& rw_mutex_;
-};
-
+typedef GuardBase<Mutex> Guard; 
+typedef RWGuardBase<Mutex> RWGuard; 
 
 // A little hack to prevent someone from trying to do "Guard(m);"
 // Such a use is invalid because the temporary Guard object is

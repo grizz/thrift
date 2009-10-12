@@ -103,6 +103,7 @@ include_async_HEADERS = \
 include_concurrencydir = $(include_thriftdir)/concurrency
 include_concurrency_HEADERS = \
                          src/concurrency/Exception.h \
+                         src/concurrency/Guard.h \
                          src/concurrency/Mutex.h \
                          src/concurrency/Monitor.h \
                          src/concurrency/PosixThreadFactory.h \

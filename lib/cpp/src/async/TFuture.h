@@ -21,7 +21,7 @@
 #define _THRIFT_TCONTROLLER_H_ 1
 
 #include <boost/function.hpp>
-#include <concurrency/Mutex.h>
+#include <concurrency/Monitor.h>
 #include <boost/shared_ptr.hpp>
 #include <iostream>
 
@@ -38,54 +38,73 @@ namespace apache { namespace thrift { namespace async {
 template <typename result_t, typename success_t, typename success_constref_t>
 class TBaseController {
  public:
-  TBaseController() : executed_(false), has_success_(false), has_error_(false) { }
-  TBaseController(success_constref_t success) : executed_(false), has_success_(true), has_error_(false) { result_.success = success; }
-  TBaseController(const result_t& result) : executed_(false), has_success_(false), has_error_(true), result_(result) { }
-  ~TBaseController() {
-  }
+  TBaseController() : executed_(false), has_success_(false), has_error_(false), is_waiting_(false) { }
+  TBaseController(success_constref_t success) : executed_(false), has_success_(true), has_error_(false), is_waiting_(false) { result_.success = success; }
+  TBaseController(const result_t& result) : executed_(false), has_success_(false), has_error_(true), is_waiting_(false), result_(result) { }
+
+  ~TBaseController() { }
+
   result_t &result() { return result_; }
   success_t &success() { return result_.success; }
 
   void callback() {
-    concurrency::Guard g(mutex_);
+    concurrency::MonitorGuard g(mutex_);
     if (has_success_) warn("TController already has success");
     has_success_ = true;
     if (callback_) runCallback();
+    if (is_waiting_) mutex_.notifyAll();
   }
   void errback() {
-    concurrency::Guard g(mutex_);
+    concurrency::MonitorGuard g(mutex_);
     if (has_error_) warn("TController already has error");
     has_error_ = true;
     if (errback_) runErrback();
+    if (is_waiting_) mutex_.notifyAll();
   }
   void callback(success_constref_t success) {  // shorthand for callback()
-    concurrency::Guard g(mutex_);
+    concurrency::MonitorGuard g(mutex_);
     if (has_success_) warn("TController already has success");
     has_success_ = true;
     result_.success = success;
     if (callback_) runCallback();
+    if (is_waiting_) mutex_.notifyAll();
   }
   void errback(const result_t &result) {  // shorthand for errback()
-    concurrency::Guard g(mutex_);
+    concurrency::MonitorGuard g(mutex_);
     if (has_error_) warn("TController already has error");
     has_error_ = true;
     result_ = result;
     if (errback_) runErrback();
+    if (is_waiting_) mutex_.notifyAll();
   }
   TBaseController<result_t, success_t, success_constref_t>& setCallback(boost::function<void (success_constref_t)> callback) {
-    concurrency::Guard g(mutex_);
+    concurrency::MonitorGuard g(mutex_);
     if (callback_) warn("TController already has callback");
     callback_ = callback;
     if (has_success_) runCallback();
     return *this;
   }
   TBaseController<result_t, success_t, success_constref_t>& setErrback(boost::function<void (const result_t &)> errback) {
-    concurrency::Guard g(mutex_);
+    concurrency::MonitorGuard g(mutex_);
     if (errback_) warn("TController already has errback");
     errback_ = errback;
     if (has_error_) runErrback();
     return *this;
   }
+  success_t wait(int64_t timeout=0LL) {
+    concurrency::MonitorGuard g(mutex_);
+    if (executed_) warn("TController has already been executed");
+    if (has_success_) return(result_.success);
+    else if (has_error_) throw result_.failure;
+
+    is_waiting_ = true;
+    mutex_.wait(timeout);
+    is_waiting_ = false;
+
+    if (has_success_) return result_.success;
+    throw result_.failure;
+  }
+
  private:
   void runCallback() { // Invoked as soon as there is both a success and a callback set
     if (executed_) warn("TController has already been executed");
@@ -97,59 +116,74 @@ class TBaseController {
     executed_ = true;
     errback_(result_);
   }
-  bool executed_, has_success_, has_error_;
+  bool executed_, has_success_, has_error_, is_waiting_;
   result_t result_;
   boost::function<void (success_constref_t)> callback_;
   boost::function<void (const result_t&)> errback_;
-  concurrency::Mutex mutex_;
+  concurrency::Monitor mutex_;
 };
 
 template <typename result_t>
 class TBaseController<result_t, void, void> {
  public:
-  TBaseController() : executed_(false), has_success_(false), has_error_(false) { }
-  TBaseController(bool success) : executed_(false), has_success_(true), has_error_(false) { }
-  TBaseController(const result_t& result) : has_success_(false), has_error_(true), result_(result) {
-    has_error_ = true;
-  }
+  TBaseController() : executed_(false), has_success_(false), has_error_(false), is_waiting_(false) { }
+  TBaseController(bool success) : executed_(false), has_success_(true), has_error_(false), is_waiting_(false) { }
+  TBaseController(const result_t& result) : has_success_(false), has_error_(true), is_waiting_(false), result_(result) { }
   ~TBaseController() {
     if (!executed_) warn("TController expired without being executed");
   }
   result_t &result() { return result_; }
 
   void callback() {
-    concurrency::Guard g(mutex_);
+    concurrency::MonitorGuard g(mutex_);
     if (has_success_) warn("TController already has success");
     has_success_ = true;
     if (callback_) runCallback();
+    if (is_waiting_) mutex_.notifyAll();
   }
   void errback() {
-    concurrency::Guard g(mutex_);
+    concurrency::MonitorGuard g(mutex_);
     if (has_error_) warn("TController already has error");
     has_error_ = true;
     if (errback_) runErrback();
+    if (is_waiting_) mutex_.notifyAll();
   }
   void errback(const result_t &result) {  // shorthand for errback()
-    concurrency::Guard g(mutex_);
+    concurrency::MonitorGuard g(mutex_);
     if (has_error_) warn("TController already has error");
     has_error_ = true;
     result_ = result;
     if (errback_) runErrback();
+    if (is_waiting_) mutex_.notifyAll();
   }
   TBaseController<result_t, void, void>& setCallback(boost::function<void (void)> callback) {
-    concurrency::Guard g(mutex_);
+    concurrency::MonitorGuard g(mutex_);
     if (callback_) warn("TController already has callback");
     callback_ = callback;
     if (has_success_) runCallback();
     return *this;
   }
   TBaseController<result_t, void, void>& setErrback(boost::function<void (const result_t &)> errback) {
-    concurrency::Guard g(mutex_);
+    concurrency::MonitorGuard g(mutex_);
     if (errback_) warn("TController already has errback");
     errback_ = errback;
     if (has_error_) runErrback();
     return *this;
   }
+  void wait(int64_t timeout=0LL) {
+    concurrency::MonitorGuard g(mutex_);
+    if (executed_) warn("TController has already been executed");
+    if (has_success_) return;
+    else if (has_error_) throw result_.failure;
+
+    is_waiting_ = true; 
+    mutex_.wait(timeout);
+    is_waiting_ = false;
+ 
+    if (has_success_) return;
+    throw result_.failure;
+  }
+
  private:
   void runCallback() { // Invoked as soon as there is both a success and a callback set
     if (executed_) warn("TController has already been executed");
@@ -161,11 +195,11 @@ class TBaseController<result_t, void, void> {
     executed_ = true;
     errback_(result_);
   }
-  bool executed_, has_success_, has_error_;
+  bool executed_, has_success_, has_error_, is_waiting_;
   result_t result_;
   boost::function<void (void)> callback_;
   boost::function<void (result_t)> errback_;
-  concurrency::Mutex mutex_;
+  concurrency::Monitor mutex_;
 };
 
 template <typename result_t>
@@ -250,6 +284,8 @@ class TBaseSharedFuture {
 
   TBaseSharedFuture<result_t, success_t, success_constref_t>& setCallback(boost::function<void (success_constref_t)> callback) { p_->setCallback(callback); return *this; }
   TBaseSharedFuture<result_t, success_t, success_constref_t>& setErrback(boost::function<void (const result_t &)> errback) { p_->setErrback(errback); return *this; }
+
+  boost::shared_ptr<TController<result_t> > operator->() { return p_; }
  private:
   boost::shared_ptr<TController<result_t> > p_;
 };
@@ -264,6 +300,8 @@ class TBaseSharedFuture<result_t, void, void> {
   TBaseSharedFuture(bool success) : p_(new TController<result_t>(success)) {}
   TBaseSharedFuture<result_t, void, void>& setCallback(boost::function<void ()> callback) { p_->setCallback(callback); return *this; }
   TBaseSharedFuture<result_t, void, void>& setErrback(boost::function<void (const result_t &)> errback) { p_->setErrback(errback); return *this; }
+
+  boost::shared_ptr<TController<result_t> > operator->() { return p_; }
  private:
   boost::shared_ptr<TController<result_t> > p_;
 };

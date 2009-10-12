@@ -20,6 +20,7 @@
 #ifndef _THRIFT_CONCURRENCY_MONITOR_H_
 #define _THRIFT_CONCURRENCY_MONITOR_H_ 1
 
+#include "Guard.h"
 #include "Exception.h"
 
 namespace apache { namespace thrift { namespace concurrency {
@@ -78,6 +79,7 @@ class Synchronized {
   const Monitor& monitor_;
 };
 
+typedef GuardBase<Monitor> MonitorGuard;
 
 }}} // apache::thrift::concurrency
 
